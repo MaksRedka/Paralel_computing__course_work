@@ -1,5 +1,17 @@
 from functools import reduce
+import threading
+import os
+import codecs
+import time
 
+#Global variables
+inverted = {}
+documents = {}
+VARIANT = 22
+_THREAD_NUM = 2
+_PATHS = ['D:\Python3_Projects/Paralel_course_work/aclImdb/test/neg','D:\Python3_Projects/Paralel_course_work/aclImdb/test/pos',
+          'D:\Python3_Projects/Paralel_course_work/aclImdb/train/neg','D:\Python3_Projects/Paralel_course_work/aclImdb/train/pos',
+          'D:\Python3_Projects/Paralel_course_work/aclImdb/train/unsup']
 _WORD_MIN_LENGTH = 3
 _STOP_WORDS = frozenset([
     'a', 'about', 'above', 'above', 'across', 'after', 'afterwards', 'again',
@@ -41,6 +53,26 @@ _STOP_WORDS = frozenset([
     'with', 'within', 'without', 'would', 'yet', 'you', 'your', 'yours', 'yourself',
     'yourselves', 'the'])
 
+doc1 = """
+    Niners head coach Mike Singletary will let Alex Smith remain his starting 
+    quarterback, but his vote of confidence is anything but a long-term mandate.
+    Smith now will work on a week-to-week basis, because Singletary has voided 
+    his year-long lease on the job.
+    "I think from this point on, you have to do what's best for the football team,"
+    Singletary said Monday, one day after threatening to bench Smith during a 
+    27-24 loss to the visiting Eagles.
+    """
+
+doc2 = """
+    The fifth edition of West Coast Green, a conference focusing on "green" home 
+    innovations and products, rolled into San Francisco's Fort Mason last week 
+    intent, per usual, on making our living spaces more environmentally friendly 
+    - one used-tire house at a time.
+    To that end, there were presentations on topics such as water efficiency and 
+    the burgeoning future of Net Zero-rated buildings that consume no energy and 
+    produce no carbon emissions.
+    """
+docs_test = {"doc1":doc1,"doc2":doc2}
 
 def word_split_out(text):
     word_list = []
@@ -185,41 +217,79 @@ def extract_text(doc, index):
     word_string = word_string.replace("\n", "")
     return word_string
 
+def get_data(path_arr):
+    """
+    read all docs in one dict
+    """
+    for path in path_arr:
+        files = os.listdir(path)
+        start_indx = int(len(files)/50 * (VARIANT-1))
+        end_indx = int(len(files) / 50 * VARIANT)
+        for file in files[start_indx:end_indx]:
+            with codecs.open(path+"/"+file,"r","utf-8-sig") as text:
+                documents.setdefault(file,text.read())
 
-if __name__ == '__main__':
-    doc1 = """
-Niners head coach Mike Singletary will let Alex Smith remain his starting 
-quarterback, but his vote of confidence is anything but a long-term mandate.
-Smith now will work on a week-to-week basis, because Singletary has voided 
-his year-long lease on the job.
-"I think from this point on, you have to do what's best for the football team,"
-Singletary said Monday, one day after threatening to bench Smith during a 
-27-24 loss to the visiting Eagles.
-"""
-
-    doc2 = """
-The fifth edition of West Coast Green, a conference focusing on "green" home 
-innovations and products, rolled into San Francisco's Fort Mason last week 
-intent, per usual, on making our living spaces more environmentally friendly 
-- one used-tire house at a time.
-To that end, there were presentations on topics such as water efficiency and 
-the burgeoning future of Net Zero-rated buildings that consume no energy and 
-produce no carbon emissions.
-"""
-
-    # Build Inverted-Index for documents
-    inverted = {}
-    documents = {'doc1': doc1, 'doc2': doc2}
-    for doc_id, text in documents.items():
-        doc_index = inverted_index(text)
-        inverted_index_add(inverted, doc_id, doc_index)
-
-    # Print Inverted-Index
+def show_inverted():
     for word, doc_locations in inverted.items():
         print(word, doc_locations)
 
+def create_inverted(doc_id_arr,text_arr):
+    mt = threading.Lock()
+    for i in range(len(doc_id_arr)):
+        doc_index = inverted_index(text_arr[i])
+        mt.acquire()
+        inverted_index_add(inverted, doc_id_arr[i], doc_index)
+        mt.release()
+
+def multi_tread_inverted():
+    keys = []
+    values = []
+    Thread_list = []
+    start_time = time.time()
+    for key,val in documents.items():
+        keys.append(key)
+        values.append(val)
+
+    start = 0
+    step = len(keys) / _THREAD_NUM
+    end = int(step-1)
+
+    for num in range(_THREAD_NUM):
+        Thread_list.append(threading.Thread(target=create_inverted,args=(keys[start:end],values[start:end])))
+        if num == _THREAD_NUM-1:
+            start += step
+            end = len(documents)
+        else:
+            start += int(step)
+            end += int(step)
+
+
+    for th in Thread_list:
+        th.start()
+        th.join()
+
+    end_time = time.time()
+    #show_inverted()
+    print(end_time - start_time)
+
+if __name__ == '__main__':
+
+
+    #function for threads to build inv-index and add it to global var +++
+    #function for complex word searching ---
+    #menu function
+
+    # Build Inverted-Index for documents
+    get_data(_PATHS)
+
+    multi_tread_inverted()
+
+
+    # # Print Inverted-Index
+
+
     # Search something and print results
-    queries = ['Week', 'water efficiency', 'Singletary said Monday']
+    queries = ['Weee', 'water', 'Singletary']
     for query in queries:
         result_docs = search(inverted, query)
         print("Search for '%s': %r" % (query, result_docs))
@@ -228,6 +298,8 @@ produce no carbon emissions.
             index_first = []
             distance = 1
             for _, word in query_word_list:
+                if word in _STOP_WORDS:
+                    continue
                 index_second = inverted[word][doc]
                 index_new = []
                 if (index_first != []):
