@@ -271,6 +271,7 @@ def multi_tread_inverted():
     end_time = time.time()
     #show_inverted()
     print(end_time - start_time)
+    print(inverted.keys())
 
 if __name__ == '__main__':
 
@@ -289,25 +290,25 @@ if __name__ == '__main__':
 
 
     # Search something and print results
-    queries = ['Weee', 'water', 'Singletary']
-    for query in queries:
-        result_docs = search(inverted, query)
-        print("Search for '%s': %r" % (query, result_docs))
-        query_word_list = word_index(query)
-        for doc in result_docs:
-            index_first = []
-            distance = 1
-            for _, word in query_word_list:
-                if word in _STOP_WORDS:
-                    continue
-                index_second = inverted[word][doc]
-                index_new = []
-                if (index_first != []):
-                    index_first = distance_between_word(index_first, index_second, distance)
-                    distance += 1
-                else:
-                    index_first = index_second
-            for index in index_first:
-                print('   - %s...' % extract_text(doc, index)," in ",doc," with word position ",index)
-
-        print("\n")
+    # queries = ['Weee', 'water', 'Singletary']
+    # for query in queries:
+    #     result_docs = search(inverted, query)
+    #     print("Search for '%s': %r" % (query, result_docs))
+    #     query_word_list = word_index(query)
+    #     for doc in result_docs:
+    #         index_first = []
+    #         distance = 1
+    #         for _, word in query_word_list:
+    #             if word in _STOP_WORDS:
+    #                 continue
+    #             index_second = inverted[word][doc]
+    #             index_new = []
+    #             if (index_first != []):
+    #                 index_first = distance_between_word(index_first, index_second, distance)
+    #                 distance += 1
+    #             else:
+    #                 index_first = index_second
+    #         for index in index_first:
+    #             print('   - %s...' % extract_text(doc, index)," in ",doc," with word position ",index)
+    #
+    #     print("\n")
