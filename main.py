@@ -1,14 +1,14 @@
 from functools import reduce
-import threading
+#import threading
+from multiprocessing import Process, Lock,Manager
 import os
 import codecs
 import time
 
 #Global variables
-inverted = {}
 documents = {}
 VARIANT = 22
-_THREAD_NUM = 2
+_THREAD_NUM = 1
 _PATHS = ['D:\Python3_Projects/Paralel_course_work/aclImdb/test/neg','D:\Python3_Projects/Paralel_course_work/aclImdb/test/pos',
           'D:\Python3_Projects/Paralel_course_work/aclImdb/train/neg','D:\Python3_Projects/Paralel_course_work/aclImdb/train/pos',
           'D:\Python3_Projects/Paralel_course_work/aclImdb/train/unsup']
@@ -60,7 +60,7 @@ doc1 = """
     his year-long lease on the job.
     "I think from this point on, you have to do what's best for the football team,"
     Singletary said Monday, one day after threatening to bench Smith during a 
-    27-24 loss to the visiting Eagles.
+    27-24 loss to the visiting Eagles test test test test.
     """
 
 doc2 = """
@@ -70,9 +70,28 @@ doc2 = """
     - one used-tire house at a time.
     To that end, there were presentations on topics such as water efficiency and 
     the burgeoning future of Net Zero-rated buildings that consume no energy and 
-    produce no carbon emissions.
+    produce no carbon emissions test test.
     """
-docs_test = {"doc1":doc1,"doc2":doc2}
+doc3 = """
+    Niners head coach Mike Singletary will let Alex Smith remain his starting 
+    quarterback, but his vote of confidence is anything but a long-term mandate.
+    Smith now will work on a week-to-week basis, because Singletary has voided 
+    his year-long lease on the job.
+    "I think from this point on, you have to do what's best for the football team,"
+    Singletary said Monday, one day after threatening to bench Smith during a 
+    27-24 loss to the visiting Eagles test test test test.
+    """
+doc4 = """
+    The fifth edition of West Coast Green, a conference focusing on "green" home 
+    innovations and products, rolled into San Francisco's Fort Mason last week 
+    intent, per usual, on making our living spaces more environmentally friendly 
+    - one used-tire house at a time.
+    To that end, there were presentations on topics such as water efficiency and 
+    the burgeoning future of Net Zero-rated buildings that consume no energy and 
+    produce no carbon emissions test test.
+    """
+
+docs_test = {"doc1":doc1,"doc2":doc2,"doc3":doc3,"doc4":doc4}
 
 def word_split_out(text):
     word_list = []
@@ -165,19 +184,25 @@ def inverted_index(text):
         locations = inverted.setdefault(word, [])
         locations.append(index)
 
+
     return inverted
 
 
-def inverted_index_add(inverted, doc_id, doc_index):
+def inverted_index_add(inverted, doc_id, doc_index,arr_index):
     """
     Add Invertd-Index doc_index of the document doc_id to the 
     Multi-Document Inverted-Index (inverted), 
     using doc_id as document identifier.
         {word:{doc_id:[locations]}}
     """
+    mt = Lock()
     for word, locations in doc_index.items():
-        indices = inverted.setdefault(word, {})
-        indices[doc_id] = locations
+        mt.acquire()
+        indicates = inverted.setdefault(word, {})
+        indicates[doc_id] = locations
+        inverted[word] = indicates
+        mt.release()
+
     return inverted
 
 
@@ -212,8 +237,9 @@ def extract_text(doc, index):
     """
     word_list = word_split_out(documents[doc])
     word_string = ""
-    for i in range(index, index + 4):
-        word_string += word_list[i] + " "
+    #for i in range(index):
+        #word_string += word_list[i] + " "
+    word_string += word_list[index]
     word_string = word_string.replace("\n", "")
     return word_string
 
@@ -226,6 +252,8 @@ def get_data(path_arr):
         start_indx = int(len(files)/50 * (VARIANT-1))
         end_indx = int(len(files) / 50 * VARIANT)
         for file in files[start_indx:end_indx]:
+        #l = int(len(files)/2)
+        #for file in files[0:l]:
             with codecs.open(path+"/"+file,"r","utf-8-sig") as text:
                 documents.setdefault(file,text.read())
 
@@ -233,83 +261,129 @@ def show_inverted():
     for word, doc_locations in inverted.items():
         print(word, doc_locations)
 
-def create_inverted(doc_id_arr,text_arr):
-    mt = threading.Lock()
+def create_inverted(doc_id_arr,text_arr,inverted):
     for i in range(len(doc_id_arr)):
         doc_index = inverted_index(text_arr[i])
-        mt.acquire()
-        inverted_index_add(inverted, doc_id_arr[i], doc_index)
-        mt.release()
+        inverted_index_add(inverted, doc_id_arr[i], doc_index,i)
 
-def multi_tread_inverted():
+
+def multi_tread_inverted(docs):
     keys = []
     values = []
-    Thread_list = []
-    start_time = time.time()
-    for key,val in documents.items():
+    Process_list = []
+    for key,val in docs.items():
         keys.append(key)
         values.append(val)
 
     start = 0
     step = len(keys) / _THREAD_NUM
-    end = int(step-1)
+    end = int(step)
 
     for num in range(_THREAD_NUM):
-        Thread_list.append(threading.Thread(target=create_inverted,args=(keys[start:end],values[start:end])))
         if num == _THREAD_NUM-1:
-            start += step
-            end = len(documents)
-        else:
-            start += int(step)
-            end += int(step)
+            end = len(keys)
+        x = Process(target=create_inverted,args=(keys[start:end],values[start:end],inverted))
+        Process_list.append(x)
+        x.start()
+        start = end
+        end += int(step)
 
-
-    for th in Thread_list:
-        th.start()
+    for th in Process_list:
         th.join()
 
-    end_time = time.time()
-    #show_inverted()
-    print(end_time - start_time)
-    print(inverted.keys())
+
+
+def search_word_ret_sent(queries):
+    for query in queries:
+        result_docs = search(inverted, query)
+        print("Search for '%s': %r" % (query, result_docs))
+        query_word_list = word_index(query)
+        for doc in result_docs:
+            index_first = []
+            distance = 1
+            for _, word in query_word_list:
+                # if word in _STOP_WORDS:
+                #     continue
+                index_second = inverted[word][doc]
+                if (index_first != []):
+                    index_first = distance_between_word(index_first, index_second, distance)
+                    distance += 1
+                else:
+                    index_first = index_second
+            for index in index_first:
+                print('   - %s...' % extract_text(doc, index)," in ",doc," with word position ",index)
+
+        print("\n")
 
 if __name__ == '__main__':
-
-
-    #function for threads to build inv-index and add it to global var +++
-    #function for complex word searching ---
-    #menu function
-
-    # Build Inverted-Index for documents
+    manager = Manager()
+    inverted = manager.dict()
     get_data(_PATHS)
 
-    multi_tread_inverted()
+    while True:
+        os.system("cls")
+        print("1. Build inverted index")
+        print("2. Build inverted index with test data")
+        print("3. Search words in inverted index")
+        print("4. Change number of threads")
+        print("5. Show inverted index")
+        print("6. Exit")
+        choice = input()
+        if str(choice).isnumeric() == False:
+            continue
+        choice = int(choice)
+
+        if choice == 1:
+            os.system("cls")
+            inverted.clear()
+            start_time = time.time()
+            multi_tread_inverted(documents)
+            end_time = time.time()
+            print("Work time ", end_time - start_time, " with {} threads".format(_THREAD_NUM))
+        elif choice == 2:
+            os.system("cls")
+            inverted.clear()
+            start_time = time.time()
+            multi_tread_inverted(docs_test)
+            end_time = time.time()
+            #show_inverted()
+            print("Work time ", end_time - start_time, " with {} threads".format(_THREAD_NUM))
+        elif choice == 3:
+            os.system("cls")
+            print("How many words do you wanna search?")
+            words_num = int(input())
+            queries = []
+            os.system("cls")
+            for i in range(words_num):
+                if i == 0:
+                    print("Enter your 1-st word")
+                    queries.append(input())
+                elif i == 1:
+                    print("Enter your 2-nd word")
+                    queries.append(input())
+                elif i == 2:
+                    print("Enter your 3-d word")
+                    queries.append(input())
+                else:
+                    print(f"Enter your {i+1}-th word")
+                    queries.append(input())
+
+            search_word_ret_sent(queries)
+        elif choice == 4:
+            os.system("cls")
+            print("Enter number of threads")
+            _THREAD_NUM = int(input())
+        elif choice == 5:
+            os.system("cls")
+            show_inverted()
+        elif choice == 6:
+            break
+        else:
+            os.system("cls")
+            print("Wrong choice try again")
+        os.system("pause")
+        os.system("cls")
 
 
-    # # Print Inverted-Index
-    #
 
 
-    # Search something and print results
-    # queries = ['Weee', 'water', 'Singletary']
-    # for query in queries:
-    #     result_docs = search(inverted, query)
-    #     print("Search for '%s': %r" % (query, result_docs))
-    #     query_word_list = word_index(query)
-    #     for doc in result_docs:
-    #         index_first = []
-    #         distance = 1
-    #         for _, word in query_word_list:
-    #             if word in _STOP_WORDS:
-    #                 continue
-    #             index_second = inverted[word][doc]
-    #             index_new = []
-    #             if (index_first != []):
-    #                 index_first = distance_between_word(index_first, index_second, distance)
-    #                 distance += 1
-    #             else:
-    #                 index_first = index_second
-    #         for index in index_first:
-    #             print('   - %s...' % extract_text(doc, index)," in ",doc," with word position ",index)
-    #
-    #     print("\n")

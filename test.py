@@ -22,18 +22,21 @@ cnt = 0
 que = queue.Queue()
 
 def increment():
-    for i in range(5):
+    for i in range(50):
         arr.append(i)
-        #print(cnt)
+        print(i)
     #print(cnt)
 
 #target=lambda q,args1: q.put(increment(args1)),args=(que,cnt,)
 th = threading.Thread(target=increment,args=())
+th2 = threading.Thread(target=increment,args=())
 th.start()
-
-
-increment()
+th2.start()
 th.join()
+th2.join()
+
+
+#increment()
 #cnt += que.get()
 
 print("====",arr,"===")
