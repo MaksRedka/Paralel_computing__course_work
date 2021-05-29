@@ -188,7 +188,7 @@ def inverted_index(text):
     return inverted
 
 
-def inverted_index_add(inverted, doc_id, doc_index,arr_index):
+def inverted_index_add(inverted, doc_id, doc_index):
     """
     Add Invertd-Index doc_index of the document doc_id to the 
     Multi-Document Inverted-Index (inverted), 
@@ -205,17 +205,6 @@ def inverted_index_add(inverted, doc_id, doc_index,arr_index):
 
     return inverted
 
-
-
-def search(inverted, query):
-    """
-    Returns a set of documents id that contains all the words in your query.
-    """
-    words = [word for _, word in word_index(query) if word in inverted]
-    results = [set(inverted[word].keys()) for word in words]
-    return reduce(lambda x, y: x & y, results) if results else []
-
-
 def distance_between_word(word_index_1, word_index_2, distance):
     """
     To judge whether the distance between the two words is equal distance
@@ -230,6 +219,14 @@ def distance_between_word(word_index_1, word_index_2, distance):
                 continue
     return distance_list
 
+
+def search(inverted, query):
+    """
+    Returns a set of documents id that contains all the words in your query.
+    """
+    words = [word for _, word in word_index(query) if word in inverted]
+    results = [set(inverted[word].keys()) for word in words]
+    return reduce(lambda x, y: x & y, results) if results else []
 
 def extract_text(doc, index):
     """
@@ -264,7 +261,7 @@ def show_inverted():
 def create_inverted(doc_id_arr,text_arr,inverted):
     for i in range(len(doc_id_arr)):
         doc_index = inverted_index(text_arr[i])
-        inverted_index_add(inverted, doc_id_arr[i], doc_index,i)
+        inverted_index_add(inverted, doc_id_arr[i], doc_index)
 
 
 def multi_tread_inverted(docs):
@@ -345,8 +342,8 @@ if __name__ == '__main__':
             inverted.clear()
             start_time = time.time()
             multi_tread_inverted(docs_test)
+            show_inverted()
             end_time = time.time()
-            #show_inverted()
             print("Work time ", end_time - start_time, " with {} threads".format(_THREAD_NUM))
         elif choice == 3:
             os.system("cls")
